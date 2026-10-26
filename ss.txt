@@ -1,0 +1,884 @@
+//matrix client
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#define PORT 12345
+int main() {
+    int s, n, a[10][10];
+    struct sockaddr_in server;
+    char result[50];
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    connect(s, (struct sockaddr *)&server, sizeof(server));
+    printf("Enter N: ");
+    scanf("%d", &n);
+    srand(time(0));
+    for(int i = 0; i < n; i++) {
+        for(int j = 0; j < n; j++) {
+            a[i][j] = rand() % 5;
+            printf("%d ", a[i][j]);
+        }
+        printf("\n");
+    }
+    send(s, &n, sizeof(n), 0);
+    send(s, a, sizeof(a), 0);
+    recv(s, result, sizeof(result), 0);
+    printf("%s\n", result);
+    close(s);
+    return 0;
+}
+
+// matric server
+
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define PORT 12345
+
+int main() {
+    int s, c, n, a[10][10];
+    struct sockaddr_in server;
+    char result[50];
+
+    s = socket(AF_INET, SOCK_STREAM, 0);
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(PORT);
+
+    bind(s, (struct sockaddr *)&server, sizeof(server));
+    listen(s, 1);
+
+    c = accept(s, NULL, NULL);
+
+    recv(c, &n, sizeof(n), 0);
+    recv(c, a, sizeof(a), 0);
+
+    int upper = 1, lower = 1, diag = 1;
+
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++) {
+            if(i > j && a[i][j] != 0) upper = 0;
+            if(i < j && a[i][j] != 0) lower = 0;
+            if(i != j && a[i][j] != 0) diag = 0;
+        }
+
+    if(diag)
+        strcpy(result, "Diagonal Matrix");
+    else if(upper)
+        strcpy(result, "Upper Triangular Matrix");
+    else if(lower)
+        strcpy(result, "Lower Triangular Matrix");
+    else
+        strcpy(result, "Not a special matrix");
+
+    send(c, result, strlen(result) + 1, 0);
+
+    close(c);
+    close(s);
+    return 0;
+}
+
+// newgenenglish client
+
+
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define PORT 12345
+
+int main() {
+    int s;
+    char b[1024];
+    struct sockaddr_in serv;
+    socklen_t len = sizeof(serv);
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(PORT);
+    serv.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    printf("Enter sentence: ");
+    fgets(b, sizeof(b), stdin);
+
+    sendto(s, b, strlen(b)+1, 0,
+           (struct sockaddr *)&serv, sizeof(serv));
+
+    recvfrom(s, b, sizeof(b)-1, 0,
+             (struct sockaddr *)&serv, &len);
+
+    b[1023] = '\0';
+    printf("Translated: %s\n", b);
+
+    close(s);
+    return 0;
+}
+
+// server engnew
+
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define PORT 12345
+
+int main() {
+    int s;
+    char b[1024], out[1024] = "";
+    struct sockaddr_in serv, cli;
+    socklen_t len = sizeof(cli);
+
+    char *abbr[] = {"tbh","ig","tbf","atm","irl","lol",
+                    "asap","omg","ttyl","idk","nvm","idc"};
+    char *full[] = {"to be honest","I guess","to be fair",
+                    "at the moment","in real life","laughing out loud",
+                    "as soon as possible","oh my God",
+                    "talk to you later","I don't know",
+                    "never mind","I don't care"};
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(PORT);
+    serv.sin_addr.s_addr = INADDR_ANY;
+
+    bind(s, (struct sockaddr *)&serv, sizeof(serv));
+
+    printf("Server running...\n");
+
+    recvfrom(s, b, sizeof(b)-1, 0,
+             (struct sockaddr *)&cli, &len);
+
+    b[1023] = '\0';
+    printf("Received: %s\n", b);
+
+    char *p = strtok(b, " \n\t");
+    while(p != NULL) {
+        int found = 0;
+
+        for(int i = 0; i < 12; i++) {
+            if(strcmp(p, abbr[i]) == 0) {
+                strcat(out, full[i]);
+                found = 1;
+                break;
+            }
+        }
+
+        if(!found) strcat(out, p);
+        strcat(out, " ");
+        p = strtok(NULL, " \n\t");
+    }
+
+    sendto(s, out, strlen(out)+1, 0,
+           (struct sockaddr *)&cli, len);
+
+    close(s);
+    return 0;
+}
+
+
+//client multichat
+
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+
+#define PORT 9000
+
+int main() {
+    int s;
+    char name[30], buf[1024];
+    struct sockaddr_in addr;
+    fd_set fds;
+
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(PORT);
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        printf("Connection failed\n");
+        close(s);
+        return 1;
+    }
+
+    printf("Enter your name: ");
+    fgets(name, sizeof(name), stdin);
+    name[strcspn(name, "\n")] = '\0';
+    send(s, name, sizeof(name), 0);
+
+    printf("Connected! Type messages (exit to quit)\n");
+
+    while (1) {
+        FD_ZERO(&fds);
+        FD_SET(0, &fds);
+        FD_SET(s, &fds);
+
+        select(s + 1, &fds, NULL, NULL, NULL);
+
+        if (FD_ISSET(0, &fds)) {
+            if (!fgets(buf, sizeof(buf), stdin)) break;
+            if (strcmp(buf, "exit\n") == 0) break;
+            send(s, buf, strlen(buf), 0);
+        }
+
+        if (FD_ISSET(s, &fds)) {
+            int n = recv(s, buf, sizeof(buf)-1, 0);
+            if (n <= 0) break;
+            buf[n] = '\0';
+            printf("%s", buf);
+        }
+    }
+
+    close(s);
+    return 0;
+}
+
+// server multichat
+
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+
+#define PORT 9000
+
+int main() {
+    int s, c, clients[10] = {0}, max, i, j;
+    char names[10][30], buf[1024], msg[1100];
+    struct sockaddr_in addr;
+    fd_set fds;
+
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(PORT);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    bind(s, (struct sockaddr *)&addr, sizeof(addr));
+    listen(s, 5);
+    printf("Chat server started\n");
+
+    while (1) {
+        FD_ZERO(&fds);
+        FD_SET(s, &fds);
+        max = s;
+
+        for (i = 0; i < 10; i++)
+            if (clients[i]) {
+                FD_SET(clients[i], &fds);
+                if (clients[i] > max) max = clients[i];
+            }
+
+        select(max + 1, &fds, NULL, NULL, NULL);
+
+        if (FD_ISSET(s, &fds)) {
+            c = accept(s, NULL, NULL);
+            for (i = 0; i < 10; i++)
+                if (!clients[i]) {
+                    clients[i] = c;
+                    recv(c, names[i], 29, 0);
+                    names[i][29] = '\0';
+                    names[i][strcspn(names[i], "\n")] = '\0';
+                    printf("%s connected\n", names[i]);
+                    break;
+                }
+            if (i == 10) close(c);
+        }
+
+        for (i = 0; i < 10; i++) {
+            int sd = clients[i];
+
+            if (sd && FD_ISSET(sd, &fds)) {
+                int n = recv(sd, buf, sizeof(buf)-1, 0);
+
+                if (n <= 0) {
+                    printf("%s disconnected\n", names[i]);
+                    close(sd);
+                    clients[i] = 0;
+                    continue;
+                }
+
+                buf[n] = '\0';
+                snprintf(msg, sizeof(msg), "%s: %s",
+                         names[i], buf);
+                printf("%s", msg);
+
+                for (j = 0; j < 10; j++)
+                    if (clients[j] && clients[j] != sd)
+                        send(clients[j], msg, strlen(msg), 0);
+            }
+        }
+    }
+    close(s);
+    return 0;
+}
+
+// time server client
+
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 9000
+
+int main() {
+    int s;
+    char buf[100] = "TIME";
+    struct sockaddr_in server;
+    socklen_t len = sizeof(server);
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    sendto(s, buf, strlen(buf)+1, 0,
+           (struct sockaddr *)&server, len);
+
+    recvfrom(s, buf, sizeof(buf)-1, 0, NULL, NULL);
+
+    printf("Current Server Time:\n%s", buf);
+
+    close(s);
+    return 0;
+}
+
+// time server server
+
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <time.h>
+
+#define PORT 9000
+
+int main() {
+    int s;
+    char buf[100];
+    time_t t;
+    struct sockaddr_in server, client;
+    socklen_t len = sizeof(client);
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = INADDR_ANY;
+
+    bind(s, (struct sockaddr *)&server, sizeof(server));
+
+    printf("Time Server Started\n");
+
+    while (1) {
+        recvfrom(s, buf, sizeof(buf), 0,
+                 (struct sockaddr *)&client, &len);
+
+        time(&t);
+        strcpy(buf, ctime(&t));
+
+        sendto(s, buf, strlen(buf)+1, 0,
+               (struct sockaddr *)&client, len);
+
+        printf("Time sent\n");
+    }
+
+    close(s);
+    return 0;
+}
+
+// file server client
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<unistd.h>
+#include<arpa/inet.h>
+
+#define PORT 9000
+#define BUFFER_SIZE 2048
+
+int main()
+{
+    int sockfd;
+    struct sockaddr_in server;
+    socklen_t len=sizeof(server);
+    char filename[100];
+    char buffer[BUFFER_SIZE];
+
+    /* Create UDP Socket */
+
+    sockfd=socket(AF_INET,SOCK_DGRAM,0);
+
+    if(sockfd<0)
+    {
+        printf("Socket Creation Failed\n");
+        return 0;
+    }
+
+    /* Server Information */
+
+    server.sin_family=AF_INET;
+    server.sin_port=htons(PORT);
+    server.sin_addr.s_addr=inet_addr("127.0.0.1");
+
+    /* Get File Name */
+
+    printf("Enter File Name : ");
+    scanf("%s",filename);
+
+    /* Send File Name to Server */
+
+    sendto(sockfd,
+           filename,
+           strlen(filename)+1,
+           0,
+           (struct sockaddr *)&server,
+           len);
+
+    /* Receive Response */
+
+    recvfrom(sockfd,
+             buffer,
+             sizeof(buffer),
+             0,
+             NULL,
+             NULL);
+
+    /* Display Response */
+
+    printf("\n=====================================\n");
+    printf("Response Received From Server\n");
+    printf("=====================================\n\n");
+
+    printf("%s\n",buffer);
+
+    close(sockfd);
+    return 0;
+}
+
+// server file server
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<unistd.h>
+#include<arpa/inet.h>
+
+#define PORT 9000
+#define BUFFER_SIZE 2048
+
+int main()
+{
+    int sockfd;
+    struct sockaddr_in server,client;
+    socklen_t len=sizeof(client);
+    char filename[100];
+    char buffer[BUFFER_SIZE];
+
+    sockfd=socket(AF_INET,SOCK_DGRAM,0);
+
+    server.sin_family=AF_INET;
+    server.sin_addr.s_addr=INADDR_ANY;
+    server.sin_port=htons(PORT);
+
+    bind(sockfd,(struct sockaddr *)&server,sizeof(server));
+
+    printf("====================================\n");
+    printf(" UDP Concurrent File Server Started\n");
+    printf(" Listening on Port %d\n",PORT);
+    printf("====================================\n");
+
+    while(1)
+    {
+        memset(filename,0,sizeof(filename));
+
+        recvfrom(sockfd,
+                 filename,
+                 sizeof(filename),
+                 0,
+                 (struct sockaddr *)&client,
+                 &len);
+
+        if(fork()==0)
+        {
+            FILE *fp;
+
+            fp=fopen(filename,"r");
+
+            memset(buffer,0,sizeof(buffer));
+
+            sprintf(buffer,
+                    "Handled by Server PID : %d\n\n",
+                    getpid());
+
+            if(fp==NULL)
+            {
+                strcat(buffer,
+                       "Requested File Not Found.\n");
+            }
+            else
+            {
+                char line[256];
+
+                while(fgets(line,sizeof(line),fp)!=NULL)
+                {
+                    strcat(buffer,line);
+                }
+
+                fclose(fp);
+            }
+
+            sendto(sockfd,
+                   buffer,
+                   strlen(buffer)+1,
+                   0,
+                   (struct sockaddr *)&client,
+                   len);
+
+            printf("Request for %s served by PID %d\n",
+                    filename,
+                    getpid());
+
+            exit(0);
+        }
+    }
+
+    close(sockfd);
+    return 0;
+}
+
+// packet cap
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<unistd.h>
+#include<arpa/inet.h>
+#include<sys/socket.h>
+#include<linux/if_packet.h>
+#include<net/ethernet.h>
+#include<netinet/ip.h>
+#include<netinet/tcp.h>
+#include<netinet/udp.h>
+#include<netinet/ip_icmp.h>
+#define BUFFER_SIZE 65536
+
+void printMAC(unsigned char *mac)
+{
+    printf("%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0],mac[1],mac[2],
+           mac[3],mac[4],mac[5]);
+}
+int main()
+{
+    int sockfd;
+    unsigned char *buffer;
+    int data_size;
+    struct sockaddr saddr;
+    socklen_t saddr_len;
+    buffer=(unsigned char *)malloc(BUFFER_SIZE);
+    sockfd=socket(AF_PACKET,SOCK_RAW,htons(ETH_P_ALL));
+    if(sockfd<0)
+    {
+        perror("Socket");
+        return 1;
+    }
+    printf("\n==============================================\n");
+    printf("        RAW SOCKET PACKET CAPTURE\n");
+    printf("==============================================\n");
+    printf("Press Ctrl+C to stop...\n\n");
+    while(1)
+    {
+        saddr_len=sizeof(saddr);
+        data_size=recvfrom(sockfd,
+                           buffer,
+                           BUFFER_SIZE,
+                           0,
+                           &saddr,
+                           &saddr_len);
+        if(data_size<0)
+        {
+            perror("recvfrom");
+            break;
+        }
+        struct ethhdr *eth =
+            (struct ethhdr *)buffer;
+        printf("\n==============================================\n");
+        printf("Packet Length : %d Bytes\n",data_size);
+        printf("\nEthernet Header\n");
+        printf("-----------------------------\n");
+        printf("Destination MAC : ");
+        printMAC(eth->h_dest);
+        printf("\nSource MAC      : ");
+        printMAC(eth->h_source);
+        printf("\nProtocol        : 0x%04X\n",
+                ntohs(eth->h_proto));
+        if(ntohs(eth->h_proto)==ETH_P_IP)
+        {
+            struct iphdr *iph=
+              (struct iphdr *)(buffer+
+              sizeof(struct ethhdr));
+            struct sockaddr_in src,dst;
+            memset(&src,0,sizeof(src));
+            memset(&dst,0,sizeof(dst));
+            src.sin_addr.s_addr=iph->saddr;
+            dst.sin_addr.s_addr=iph->daddr;
+            printf("\nIP Header\n");
+            printf("-----------------------------\n");
+            printf("Source IP      : %s\n",
+                    inet_ntoa(src.sin_addr));
+            printf("Destination IP : %s\n",
+                    inet_ntoa(dst.sin_addr));
+            printf("TTL            : %d\n",
+                    iph->ttl);
+            printf("Protocol       : %d\n",
+                    iph->protocol);
+            if(iph->protocol==IPPROTO_TCP)
+            {
+                struct tcphdr *tcp=
+                  (struct tcphdr*)
+                  (buffer+
+                  sizeof(struct ethhdr)+
+                  iph->ihl*4);
+                printf("\nTCP Header\n");
+                printf("-----------------------------\n");
+                printf("Source Port      : %u\n",
+                       ntohs(tcp->source));
+                printf("Destination Port : %u\n",
+                       ntohs(tcp->dest));}
+            else if(iph->protocol==IPPROTO_UDP)
+            {
+                struct udphdr *udp=
+                  (struct udphdr*)
+                  (buffer+
+                  sizeof(struct ethhdr)+
+                  iph->ihl*4);
+
+                printf("\nUDP Header\n");
+                printf("-----------------------------\n");
+
+                printf("Source Port      : %u\n",
+                        ntohs(udp->source));
+
+                printf("Destination Port : %u\n",
+                        ntohs(udp->dest));
+            }
+            else if(iph->protocol==IPPROTO_ICMP)
+            {
+                struct icmphdr *icmp=
+                  (struct icmphdr*)
+                  (buffer+
+                  sizeof(struct ethhdr)+
+                  iph->ihl*4);
+                printf("\nICMP Header\n");
+                printf("-----------------------------\n");
+                printf("Type : %d\n",
+                        icmp->type);
+                printf("Code : %d\n",
+                        icmp->code);
+            }
+            else
+            {
+                printf("\nOther Protocol\n");
+            }
+        }
+    }
+    close(sockfd);
+    free(buffer);
+    return 0;
+}
+
+// tcp Server Program
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#define PORT 12345
+
+int main() {
+    int server_fd, new_socket;
+    struct sockaddr_in address;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {0};
+    char *message = "Hello from server";
+    // Create socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == 0) {
+        perror("Socket failed");
+        exit(EXIT_FAILURE);
+    }
+    // Define address
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+int opt = 1;
+
+if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+               &opt, sizeof(opt)) < 0) {
+    perror("setsockopt failed");
+    exit(EXIT_FAILURE);
+}
+
+    // Bind
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        perror("Bind failed");
+        exit(EXIT_FAILURE);
+    }
+    // Listen
+    if (listen(server_fd, 3) < 0) {
+        perror("Listen");
+        exit(EXIT_FAILURE);
+    }
+    printf("Server is listening...\n");
+    // Accept connection
+    new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+    if (new_socket < 0) {
+        perror("Accept");
+        exit(EXIT_FAILURE);
+    }
+    // Read data
+    read(new_socket, buffer, 1024);
+    printf("Client: %s\n", buffer);
+    // Send response
+    send(new_socket, message, strlen(message), 0);
+    printf("Message sent to client\n");
+    close(new_socket);
+    close(server_fd);
+    return 0;
+}
+
+// Client Program tcp
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#define PORT 12345
+
+int main() {
+    int sock = 0;
+    struct sockaddr_in serv_addr;
+    char *message = "Hello from client";
+    char buffer[1024] = {0};
+    // Create socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        printf("\nSocket creation error\n");
+        return -1;
+    }
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");     
+    /* Convert IP address different Code - NOT USED HERE
+    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+        printf("\nInvalid address\n");
+        return -1;
+    } */
+    // Connect to server
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        printf("\nConnection Failed\n");
+        return -1;
+    }
+    // Send message
+    send(sock, message, strlen(message), 0);
+    printf("Message sent to server\n");
+    // Read response
+    read(sock, buffer, 1024);
+    printf("Server: %s\n", buffer);
+    close(sock);
+    return 0;
+}
+
+// udp Server Program
+
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#define PORT 12345
+
+int main() {
+    int sockfd;
+    char buffer[1024];
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t len;
+    // Create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+    // Bind
+    bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    printf("UDP Server is running...\n");
+    len = sizeof(client_addr);
+    // Receive message
+    recvfrom(sockfd, buffer, sizeof(buffer), 0,
+             (struct sockaddr *)&client_addr, &len);
+    printf("Client: %s\n", buffer);
+    // Send response
+    char *msg = "Hello from UDP server";
+    sendto(sockfd, msg, strlen(msg)+1, 0,
+           (struct sockaddr *)&client_addr, len);
+    close(sockfd);
+    return 0;
+}
+
+
+//Client Program udp
+
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#define PORT 12345
+
+int main() {
+    int sockfd;
+    char buffer[1024];
+    struct sockaddr_in server_addr;
+    socklen_t len;
+    // Create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    char *msg = "Hello from UDP client";
+    // Send message
+    sendto(sockfd, msg, strlen(msg)+1, 0,
+           (struct sockaddr *)&server_addr, sizeof(server_addr));
+    len = sizeof(server_addr);
+    // Receive response
+    recvfrom(sockfd, buffer, sizeof(buffer), 0,
+             (struct sockaddr *)&server_addr, &len);
+    printf("Server: %s\n", buffer);
+    close(sockfd);
+    return 0;
+}

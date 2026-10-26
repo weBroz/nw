@@ -1,0 +1,112 @@
+r0
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 192.168.1.1 255.255.255.0
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 10.0.0.1 255.255.255.252
+no shutdown
+exit
+ip route 192.168.2.0 255.255.255.0 10.0.0.2
+end
+copy running-config startup-config
+
+r1
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 10.0.0.2 255.255.255.252
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 192.168.2.1 255.255.255.0
+no shutdown
+exit
+ip route 192.168.1.0 255.255.255.0 10.0.0.1
+end
+copy running-config startup-config
+
+r0
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 192.168.1.1 255.255.255.0
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 10.0.0.1 255.255.255.252
+no shutdown
+exit
+router ospf 1
+network 192.168.1.0 0.0.0.255 area 0
+network 10.0.0.0 0.0.0.3 area 0
+exit
+end
+copy running-config startup-config
+
+r1
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 10.0.0.2 255.255.255.252
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 192.168.2.1 255.255.255.0
+no shutdown
+exit
+router ospf 1
+network 10.0.0.0 0.0.0.3 area 0
+network 192.168.2.0 0.0.0.255 area 0
+exit
+end
+copy running-config startup-config
+
+r0
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 192.168.1.1 255.255.255.0
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 10.0.0.1 255.255.255.252
+no shutdown
+exit
+router rip
+version 2
+no auto-summary
+network 192.168.1.0
+network 10.0.0.0
+exit
+end
+copy running-config startup-config
+
+r1
+
+enable
+configure terminal
+interface gigabitEthernet 0/0
+ip address 10.0.0.2 255.255.255.252
+no shutdown
+exit
+interface gigabitEthernet 0/1
+ip address 192.168.2.1 255.255.255.0
+no shutdown
+exit
+router rip
+version 2
+no auto-summary
+network 192.168.2.0
+network 10.0.0.0
+exit
+end
+copy running-config startup-config
+

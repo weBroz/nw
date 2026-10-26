@@ -1,0 +1,66 @@
+# KTU S5 NETWORKS LAB — WIRESHARK QUICK STEPS
+HTTP, HTTPS & DNS | PCCSL507
+
+## 1. HTTP CAPTURE (Windows + Linux)
+
+1. Open Wireshark.
+2. Double-click the active Wi-Fi/Ethernet interface.
+3. Open browser: `http://neverssl.com`
+4. Wait for page load, then stop capture.
+5. Filter: `http`
+6. Click the GET packet. Expand:
+   - Internet Protocol: Source and Destination IP
+   - Hypertext Transfer Protocol: Host, Accept, Accept-Language, Accept-Encoding, User-Agent, HTTP version
+7. Click the matching response. Note status code, IPs, Last-Modified and Content-Length if present.
+8. Note GET and response timestamps.
+9. Response time = Response timestamp − GET timestamp.
+
+## 2. HTTPS CAPTURE (Windows + Linux)
+
+1. Open Wireshark and start capturing.
+2. Visit: `https://example.com`
+3. Stop capture after the page loads.
+4. Filter: `tls`
+5. Inspect TLS handshake packets and IP addresses.
+
+Note: HTTPS content is encrypted. HTTP headers and page contents are normally not readable. For HTTP/3 traffic, try filter `quic`.
+
+## 3. DNS CAPTURE
+
+### Linux
+1. Open Terminal.
+2. Run: `resolvectl flush-caches`
+systemd-resolve --flush-caches
+3. If unavailable, try: `sudo systemd-resolve --flush-caches`
+
+### Continue on Windows and Linux
+
+1. Open Wireshark and start capturing.
+2. Visit a domain, e.g. `www.mec.ac.in`
+3. Stop capture.
+4. Filter: `dns`
+5. Click a Standard query packet.
+6. Expand Internet Protocol: note source/destination IP.
+7. Expand UDP/TCP: note source/destination ports.
+8. Expand Domain Name System: note transaction ID, flags, QR bit and record counts.
+9. Find the matching response and compare transaction IDs.
+10. Note response code, answer IP and TTL if present.
+
+## QUICK VALUES
+
+HTTP: TCP port 80  
+HTTPS: Usually TCP port 443  
+DNS: Usually UDP port 53; TCP is also used
+
+HTTP filter: `http`  
+HTTPS/TLS filter: `tls`  
+HTTP/3 filter: `quic`  
+DNS filter: `dns`
+
+DNS QR bit:
+0 = Query
+1 = Response
+
+DNS Flags field = 16 bits (2 bytes)
+
+IMPORTANT: Record actual values from your capture. HTTPS is encrypted, and DNS queries may not appear if encrypted DNS or caching is used.
